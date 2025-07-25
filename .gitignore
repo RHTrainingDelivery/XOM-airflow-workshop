@@ -1,0 +1,6 @@
+env/config/**/*
+env/dags/**/*
+env/logs/**/*
+env/plugins/**/*
+env/Dockerfile
+env/requirements.txt
