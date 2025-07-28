@@ -1,0 +1,104 @@
+import pandas as pd
+import os
+from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator
+from urllib.request import urlretrieve
+
+from airflow.sdk import dag,task
+
+@dag()
+def process_weather_info():
+    data_path = "/opt/airflow/dags/files/parquet_file.parquet"
+    csv_path = "/opt/airflow/dags/files/parquet_file.csv"
+
+
+    create_weather_temp_table = SQLExecuteQueryOperator(
+        task_id="create_weather_temp_table",
+        conn_id="tutorial_pg_conn",
+        sql="""
+            DROP TABLE IF EXISTS weather_temp;
+            CREATE TABLE IF NOT EXISTS weather_temp (
+                "Id" NUMERIC PRIMARY KEY,
+                "MinTemp" NUMERIC,
+                "MaxTemp" NUMERIC,
+                "Rainfall" NUMERIC,
+                "Evaporation" NUMERIC,
+                "Sunshine" TEXT,
+                "WindGustDir" TEXT,
+                "WindGustSpeed" TEXT,
+                "WindDir9am" TEXT,
+                "WindDir3pm" TEXT,
+                "WindSpeed3pm" TEXT,
+                "WindSpeed9am" TEXT,
+                "Humidity9am" NUMERIC,
+                "Humidity3pm" NUMERIC,
+                "Pressure9am" NUMERIC,
+                "Pressure3pm" NUMERIC,
+                "Cloud9am" NUMERIC,
+                "Cloud3pm" NUMERIC,
+                "Temp9am" NUMERIC,
+                "Temp3pm" NUMERIC,
+                "RainToday" TEXT,
+                "RISK_MM" NUMERIC,  
+                "RainTomorrow" TEXT
+                );"""
+    )
+    create_weather_table = SQLExecuteQueryOperator(
+        task_id="create_weather_table",
+        conn_id="tutorial_pg_conn",
+        sql="""
+            CREATE TABLE IF NOT EXISTS weather (
+                "Id" NUMERIC PRIMARY KEY,                
+                "MinTemp" NUMERIC,
+                "MaxTemp" NUMERIC,
+                "Rainfall" NUMERIC,
+                "Evaporation" NUMERIC,
+                "Sunshine" NUMERIC,
+                "WindGustDir" TEXT,
+                "WindGustSpeed" NUMERIC,
+                "WindDir9am" TEXT,
+                "WindDir3pm" TEXT,
+                "WindSpeed9am" NUMERIC,
+                "WindSpeed3pm" NUMERIC,
+                "Humidity9am" NUMERIC,
+                "Humidity3pm" NUMERIC,
+                "Pressure9am" NUMERIC,
+                "Pressure3pm" NUMERIC,
+                "Cloud9am" NUMERIC,
+                "Cloud3pm" NUMERIC,
+                "Temp9am" NUMERIC,
+                "Temp3pm" NUMERIC,
+                "RainToday" TEXT,
+                "RISK_MM" NUMERIC,  
+                "RainTomorrow" TEXT);
+            """
+    )
+
+
+    @task
+    def download_parquet_file():
+        os.makedirs(os.path.dirname(data_path), exist_ok=True)
+        url="https://github.com/RHTrainingDelivery/XOM-airflow-workshop/raw/refs/heads/main/weather.parquet"
+        urlretrieve(url,data_path)
+        
+    @task
+    def convert_parquet_file_to_csv():
+        df=pd.read_parquet(data_path)
+        df.to_csv(csv_path,index_label="Id")
+
+    @task
+    def get_data():
+        postgres_hook = PostgresHook(postgres_conn_id="tutorial_pg_conn")
+        conn = postgres_hook.get_conn()
+        cur = conn.cursor()
+        with open(csv_path, "r") as file:
+            cur.copy_expert(
+                "COPY weather_temp FROM STDIN WITH CSV HEADER DELIMITER AS ',' QUOTE '\"'",
+                file,
+            )
+        conn.commit()
+
+
+    create_weather_temp_table >> create_weather_table >> download_parquet_file() >> convert_parquet_file_to_csv() >> get_data()
+    
+process_weather_info()
