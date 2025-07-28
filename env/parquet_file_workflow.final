@@ -15,63 +15,12 @@ def process_weather_info():
     create_weather_temp_table = SQLExecuteQueryOperator(
         task_id="create_weather_temp_table",
         conn_id="tutorial_pg_conn",
-        sql="""
-            DROP TABLE IF EXISTS weather_temp;
-            CREATE TABLE IF NOT EXISTS weather_temp (
-                "Id" NUMERIC PRIMARY KEY,
-                "MinTemp" NUMERIC,
-                "MaxTemp" NUMERIC,
-                "Rainfall" NUMERIC,
-                "Evaporation" NUMERIC,
-                "Sunshine" TEXT,
-                "WindGustDir" TEXT,
-                "WindGustSpeed" TEXT,
-                "WindDir9am" TEXT,
-                "WindDir3pm" TEXT,
-                "WindSpeed3pm" TEXT,
-                "WindSpeed9am" TEXT,
-                "Humidity9am" NUMERIC,
-                "Humidity3pm" NUMERIC,
-                "Pressure9am" NUMERIC,
-                "Pressure3pm" NUMERIC,
-                "Cloud9am" NUMERIC,
-                "Cloud3pm" NUMERIC,
-                "Temp9am" NUMERIC,
-                "Temp3pm" NUMERIC,
-                "RainToday" TEXT,
-                "RISK_MM" NUMERIC,  
-                "RainTomorrow" TEXT
-                );"""
+        sql="sql/temp_weather_table.sql"
     )
     create_weather_table = SQLExecuteQueryOperator(
         task_id="create_weather_table",
         conn_id="tutorial_pg_conn",
-        sql="""
-            CREATE TABLE IF NOT EXISTS weather (
-                "Id" NUMERIC PRIMARY KEY,                
-                "MinTemp" NUMERIC,
-                "MaxTemp" NUMERIC,
-                "Rainfall" NUMERIC,
-                "Evaporation" NUMERIC,
-                "Sunshine" NUMERIC,
-                "WindGustDir" TEXT,
-                "WindGustSpeed" NUMERIC,
-                "WindDir9am" TEXT,
-                "WindDir3pm" TEXT,
-                "WindSpeed9am" NUMERIC,
-                "WindSpeed3pm" NUMERIC,
-                "Humidity9am" NUMERIC,
-                "Humidity3pm" NUMERIC,
-                "Pressure9am" NUMERIC,
-                "Pressure3pm" NUMERIC,
-                "Cloud9am" NUMERIC,
-                "Cloud3pm" NUMERIC,
-                "Temp9am" NUMERIC,
-                "Temp3pm" NUMERIC,
-                "RainToday" TEXT,
-                "RISK_MM" NUMERIC,  
-                "RainTomorrow" TEXT);
-            """
+        sql="sql/weather_table.sql"
     )
 
 
