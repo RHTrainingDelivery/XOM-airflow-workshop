@@ -1,0 +1,42 @@
+# import library to query weather
+from datetime import datetime
+from airflow.sdk import dag,task
+
+@dag
+def query_weather():
+    @task.external_python(python="/opt/airflow/latest/bin/python")
+    def query_weather_latest():
+        from meteostat import Hourly
+        from datetime import datetime
+        start = datetime(2018, 1, 1)
+        end = datetime(2018, 12, 31, 23, 59)
+
+        # Get hourly data
+        data = Hourly('72219', start, end)
+        data = data.fetch()
+
+        # Print DataFrame
+        print(data)
+
+    @task
+    def query_weather_old():
+        from meteostat import Stations, Daily
+        from datetime import datetime
+
+        # Set coordinates of Vancouver
+        lat = 49.2497
+        lon = -123.1193
+
+        # Set time period
+        start = datetime(2018, 1, 1)
+        end = datetime(2018, 12, 31)
+
+        # Get closest weather station to Vancouver, BC
+        stations = Stations()
+        stations = stations.nearby(lat, lon)
+        stations = stations.inventory('daily', (start, end))
+        station = stations.fetch(1)
+
+        print(station)        
+    query_weather_latest() >> query_weather_old()
+query_weather()
