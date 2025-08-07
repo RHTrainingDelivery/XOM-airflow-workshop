@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS weather (
-     "Id" NUMERIC PRIMARY KEY,                
+     "Id" NUMERIC,                
      "MinTemp" NUMERIC,
      "MaxTemp" NUMERIC,
      "Rainfall" NUMERIC,

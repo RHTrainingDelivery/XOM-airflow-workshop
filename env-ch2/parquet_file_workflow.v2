@@ -1,46 +1,62 @@
-import pandas as pd
+
 import os
-from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator
+import pandas as pd
 from urllib.request import urlretrieve
-
-
 from airflow.sdk import dag,task,get_current_context
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator
+from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
+
+
 
 @dag()
 def process_weather_info():
-    data_path="/opt/airflow/dags/files/parquet_file.parquet"    
-    csv_path="/opt/airflow/dags/files/parquet_file.csv"
-
-    create_weather_temp_table = SQLExecuteQueryOperator(
-        task_id="create_weather_temp_table",
-        conn_id="tutorial_pg_conn",
-        sql="sql/temp_weather_table.sql"
-    )
-    create_weather_table = SQLExecuteQueryOperator(
-        task_id="create_weather_table",
-        conn_id="tutorial_pg_conn",
-        sql="sql/weather_table.sql"
-    )
-
 
     @task
-    def download_parquet_file():
-        os.makedirs(os.path.dirname(data_path), exist_ok=True)
-        url="https://github.com/RHTrainingDelivery/XOM-airflow-workshop/raw/refs/heads/main/weather.parquet"
+    def initialize_variables():
+        context = get_current_context()
+        ti = context["ti"]
+        ti.xcom_push(key="data_path",value="/opt/airflow/dags/files/parquet_file.parquet")
+        ti.xcom_push(key="csv_path", value="/opt/airflow/dags/files/parquet_file.csv")
 
-        urlretrieve(url,data_path)
-        
-    @task
-    def convert_parquet_file_to_csv():
-        df=pd.read_parquet(data_path)
-        df.to_csv(csv_path,index_label="Id")
+
+#    create_weather_temp_table = SQLExecuteQueryOperator(
+#        task_id="create_weather_temp_table",
+#        conn_id="tutorial_pg_conn",
+#        sql="sql/temp_weather_table.sql"
+#    )
+
+#    @task
+#    def download_parquet_file():
+#        context=get_current_event()
+#        ti = context['ti']
+#        data_path = ti.xcom_pull(key="data_path", task_ids="initialize_variables")
+#        os.makedirs(os.path.dirname(data_path), exist_ok=True)
+#        url="https://github.com/RHTrainingDelivery/XOM-airflow-workshop/raw/refs/heads/main/weather.parquet"
+#        urlretrieve(url,data_path)
+
+#    @task
+#    def convert_parquet_file_to_csv():
+#        context=get_current_event()
+#        ti = context['ti']
+#        data_path = ti.xcom_pull(key="data_path", task_ids="initialize_variables")
+#        csv_path = ti.xcom_pull(key="csv_path", task_ids="initialize_variables")
+#        df=pd.read_parquet(data_path)
+#        df.to_csv(csv_path,index_label="Id")
+
+    transform_parquet_csv = TriggerDagRunOperator(trigger_dag_id="transform_parquet_csv",task_id="import_parquet")
+
 
     @task
     def get_data():
         postgres_hook = PostgresHook(postgres_conn_id="tutorial_pg_conn")
+
         conn = postgres_hook.get_conn()
         cur = conn.cursor()
+        context=get_current_event()
+        ti = context['ti']
+        csv_path = ti.xcom_pull(key="csv_path", task_ids="initialize_variables")
+
         with open(csv_path, "r") as file:
             cur.copy_expert(
                 "COPY weather_temp FROM STDIN WITH CSV HEADER DELIMITER AS ',' QUOTE '\"'",
@@ -48,7 +64,89 @@ def process_weather_info():
             )
         conn.commit()
 
+#    create_weather_table = SQLExecuteQueryOperator(
+#        task_id="create_weather_table",
+#        conn_id="tutorial_pg_conn",
+#        sql="sql/weather_table.sql"
+#    )
 
-    [create_weather_temp_table, create_weather_table] >> download_parquet_file() >> convert_parquet_file_to_csv() >> get_data()
-    
+    create_tables = TriggerDagRunOperator(trigger_dag_id="create_database_tables",task_id="create_tables")
+
+    @task
+    def merge_data():
+        query="""
+        INSERT INTO weather ( 
+        Id,
+        MinTemp,
+        MaxTemp,
+        Rainfall,
+        Evaporation,
+        Sunshine,
+        WindGustDir,
+        WindGustSpeed ,
+        WindDir9am,
+        WindDir3pm,
+        WindSpeed3pm ,
+        WindSpeed9am,
+        Humidity9am,
+        Humidity3pm,
+        Pressure9am,
+        Pressure3pm,
+        Cloud9am,
+        Cloud3pm,
+        Temp9am,
+        Temp3pm,
+        RainToday,
+        RISK_MM,  
+        RainTomorrow 
+        )
+    SELECT     
+        Id,
+        MinTemp,
+        MaxTemp,
+        Rainfall,
+        Evaporation,
+        Sunshine,
+        WindGustDir,
+        CASE
+            WHEN WindGustSpeed='NA' THEN NULL,
+            ELSE WindGustSpeed
+        END,
+        WindDir9am,
+        WindDir3pm,
+        CASE
+            WHEN WindSpeed3pm='NA' THEN NULL,
+            ELSE WindSpeed3pm
+        END,
+        CASE
+            WHEN WindSpeed9am='NA' THEN NULL,
+            ELSE WindSpeed9am
+        END,
+        Humidity9am,
+        Humidity3pm,
+        Pressure9am,
+        Pressure3pm,
+        Cloud9am,
+        Cloud3pm,
+        Temp9am,
+        Temp3pm,
+        RainToday,
+        RISK_MM,  
+        RainTomorrow
+    FROM  weather_temp; 
+        """
+        try:
+            postgres_hook = PostgresHook(postgres_conn_id="tutorial_pg_conn")
+            conn = postgres_hook.get_conn()
+            cur = conn.cursor()
+            cur.execute(query)
+            conn.commit()
+            return 0
+        except Exception as e:
+            return 1
+
+
+#    [initialize_variables(), create_weather_temp_table, create_weather_table] >> download_parquet_file() >> convert_parquet_file_to_csv() >> get_data() >> merge_data()
+#    initialize_variables() >> create_tables >> download_parquet_file() >> convert_parquet_file_to_csv() >> get_data() >> merge_data()
+    initialize_variables() >> create_tables >> transform_parquet_csv >> get_data() >> merge_data()
 process_weather_info()
