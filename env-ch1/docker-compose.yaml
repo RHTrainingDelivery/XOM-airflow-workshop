@@ -86,7 +86,7 @@ x-airflow-common:
 
 services:
   postgres:
-    image: quay.io/rhn-gls-rtaniguchi/postgres:13
+    image: quay.io/rhn_gls_rtaniguchi/postgres:13
     environment:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: airflow
