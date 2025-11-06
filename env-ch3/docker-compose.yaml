@@ -49,7 +49,7 @@ x-airflow-common:
   # In order to add custom dependencies or upgrade provider distributions you can use your extended image.
   # Comment the image line, place your Dockerfile in the directory where you placed the docker-compose.yaml
   # and uncomment the "build" line below, Then run `docker-compose build` to build the images.
-  image: ${AIRFLOW_IMAGE_NAME:-quay.io/redhattraining/apache-airflow:3.0.3}
+  image: ${AIRFLOW_IMAGE_NAME:-docker.io/apache/airflow:3.0.3}
   # We have to change to the following line to create our custom Airflow container build including any external Python dependency needed
 
 #  build: .
@@ -88,7 +88,7 @@ x-airflow-common:
 
 services:
   postgres:
-    image: quay.io/rhn_gls_rtaniguchi/postgres:13
+    image: docker.io/postgres:13
     environment:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: airflow
